@@ -1,0 +1,134 @@
+Option Explicit
+Declare PtrSafe Function GetAsyncKeyState Lib "User32.dll" (ByVal vKey As Long) As Long
+    'Win32API
+    'Declare：宣言
+    'Function：関数
+    'GetAsyncKeyState：押されたキーを判定
+    'Long：長整数型
+Declare PtrSafe Sub Sleep Lib "kernel32.dll" (ByVal dwMilliseconds As Long)
+    'Sleep：一定時間処理を停止
+
+'1~nのランダムなセル位置を返す
+Function set_position(n As Long) As Range
+    Dim X As Long, Y As Long
+    
+    X = WorksheetFunction.RandBetween(1, n)
+    Y = WorksheetFunction.RandBetween(1, n)
+    Set set_position = Range("Board").Cells(X, Y)
+End Function
+
+'2つのRangeを受け取り、距離を小数で返す
+Function calc_distance(rng1 As Range, rng2 As Range) As Single
+    'Single：単精度浮動小数点型
+    calc_distance = Sqr((rng1.Row - rng2.Row) ^ 2 + (rng1.Column - rng2.Column) ^ 2)
+        '√(X-X)^2+(Y-Y)^2
+        'Sqr：√
+        'Row：行
+        'Column：列
+    Range("Distance").Value = "お宝との距離：" & Round(calc_distance, 2)
+        'Round：四捨五入
+End Function
+
+'方向キーの押された方へ移動後のセル位置を返す
+Function move_position(rng As Range, 方向 As String) As Range
+    rng.ClearContents
+        '現在のセル位置を削除
+    On Error Resume Next
+        '以降のエラーは無視
+    If 方向 = "左" Then
+        Set move_position = rng.Offset(, -1)
+            'Offset(行, 列)：移動
+    ElseIf 方向 = "右" Then
+        Set move_position = rng.Offset(, 1)
+    ElseIf 方向 = "上" Then
+        Set move_position = rng.Offset(-1)
+    ElseIf 方向 = "下" Then
+        Set move_position = rng.Offset(1)
+    End If
+    If Err.Number <> 0 Or 方向 = "初期設定" Then
+        'エラー・初期位置の場合
+        Set move_position = rng
+    End If
+    move_position.Value = "人"
+    ActiveSheet.Shapes("プレイヤー").Left = move_position.Left
+    ActiveSheet.Shapes("プレイヤー").Top = move_position.Top
+End Function
+
+'方向キー
+Function key_search() As String
+    If GetAsyncKeyState(vbKeyLeft) Then
+        key_search = "左"
+    ElseIf GetAsyncKeyState(vbKeyRight) Then
+        key_search = "右"
+    ElseIf GetAsyncKeyState(vbKeyUp) Then
+        key_search = "上"
+    ElseIf GetAsyncKeyState(vbKeyDown) Then
+        key_search = "下"
+    Else
+        key_search = ""
+    End If
+End Function
+
+Sub Main()
+    Const BOARD_SIZE = 5
+    Dim Player_rng As Range: Set Player_rng = set_position(BOARD_SIZE)
+    Dim Goal_rng As Range: Set Goal_rng = set_position(BOARD_SIZE)
+    Dim Distance As Single
+    Dim Key As String
+    Dim Count As Long: Count = 0
+    
+    'プレイヤー・お宝の初期位置を可視化
+    Set Player_rng = move_position(Player_rng, "初期設定")
+    'Goal_rng.Interior.Color = vbYellow
+    Distance = calc_distance(Player_rng, Goal_rng)
+        '初期位置のプレイヤー・お宝の距離
+    
+    'プレイヤー・お宝の距離
+    Do While Player_rng <> Goal_rng
+        '<>：以外
+        Key = key_search()
+            '方向キーが押されたか判定
+        If Key <> "" Then
+            '方向キーが押された場合
+            Set Player_rng = move_position(Player_rng, Key)
+                '方向キーの押された方へプレイヤーのセル位置を移動
+            Distance = calc_distance(Player_rng, Goal_rng)
+                '方向キーが押された後のプレイヤー・お宝の距離
+            Count = Count + 1
+            Range("Count").Value = "手数：" & Count
+        End If
+        If Selection <> Player_rng Then
+            '選択中のセルがプレイヤーでない場合
+            Player_rng.Select
+        End If
+        Sleep 100
+            '100：0.1秒
+        DoEvents
+            '処理をOSに返す
+    Loop
+    
+    If Distance = 0 Then
+        MsgBox "お宝を発見！"
+        Range("Distance").Value = "おめでとう！"
+        Goal_rng.Interior.Color = vbYellow
+    End If
+End Sub
+
+Sub Distance()
+    Dim Distance As Single
+    
+    Distance = calc_distance(Range("A1"), Range("A2"))
+    MsgBox Distance
+End Sub
+
+Sub Reset()
+    Dim Count As Long: Count = 0
+    
+    Range("Board").ClearContents
+    Range("Board").Interior.Color = xlNone
+        'xlNone：塗りつぶし×
+    Range("Distance").Value = "お宝を見つけよう！"
+    Range("Count").Value = "手数：" & Count
+    ActiveSheet.Shapes("プレイヤー").Left = Range("Distance").Offset(, 1).Left
+    ActiveSheet.Shapes("プレイヤー").Top = Range("Distance").Top
+End Sub
